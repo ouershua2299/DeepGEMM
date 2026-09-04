@@ -182,7 +182,7 @@ static void sm90_nvfp4_small_m_fused_mega_moe(
         num_padded_sf_pool_tokens,
     };
     if (use_kf424_schedule)
-        DG_HOST_ASSERT(num_sms == 132);
+        DG_HOST_ASSERT(num_sms == 132 || num_sms == 78);
     const auto plan = use_kf424_schedule ?
         select_sm90_nvfp4_small_m_kf424(heuristic_input) :
         select_sm90_nvfp4_small_m(heuristic_input);

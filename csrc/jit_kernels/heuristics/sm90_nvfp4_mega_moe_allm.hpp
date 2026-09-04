@@ -45,14 +45,47 @@ static constexpr SM90NVFP4AllMArm select_sm90_nvfp4_allm_arm(
         return SM90NVFP4AllMArm::BigMSplit;
 
     const bool is_h200 = input.num_sms == 132;
+    // H20-3e (78 SMs) carries its own exact-key table, measured on 8xH20-3e
+    // (2026-09-01 five-block admission, smallm_h20_selector.json).  The H200
+    // table must not be transferred by SKU name, and no H20 bucket falls back
+    // to dev-m dynamic merely because the 132-SM key does not match.
+    const bool is_h20 = input.num_sms == 78;
+    const bool sm90_exact_target = is_h200 || is_h20;
     const bool is_flash =
-        is_h200 && input.num_ranks == 8 && input.num_experts == 256 &&
+        sm90_exact_target && input.num_ranks == 8 && input.num_experts == 256 &&
         input.num_topk == 6 && input.hidden == 4096 &&
         input.intermediate_hidden == 2048;
     const bool is_pro =
-        is_h200 && input.num_ranks == 8 && input.num_experts == 384 &&
+        sm90_exact_target && input.num_ranks == 8 && input.num_experts == 384 &&
         input.num_topk == 6 && input.hidden == 7168 &&
         input.intermediate_hidden == 3072;
+    if (is_flash && is_h20) {
+        switch (input.num_tokens) {
+            case 8:
+            case 16:
+            case 64:
+                return SM90NVFP4AllMArm::D40DynamicRS;
+            case 32:
+                return SM90NVFP4AllMArm::D40KF424StaticRS;
+            case 128:
+                return SM90NVFP4AllMArm::DevMDynamic;
+            default:
+                return SM90NVFP4AllMArm::DevMDynamic;
+        }
+    }
+    if (is_pro && is_h20) {
+        switch (input.num_tokens) {
+            case 8:
+            case 32:
+            case 128:
+                return SM90NVFP4AllMArm::D40KF424StaticRS;
+            case 16:
+            case 64:
+                return SM90NVFP4AllMArm::D40DynamicRS;
+            default:
+                return SM90NVFP4AllMArm::DevMDynamic;
+        }
+    }
     if (is_flash) {
         switch (input.num_tokens) {
             case 8:
@@ -132,6 +165,37 @@ static_assert(select_sm90_nvfp4_allm_arm(
     SM90NVFP4AllMArm::D40KF424StaticRS);
 static_assert(select_sm90_nvfp4_allm_arm(
     {132, 8, 256, 2048, 6, 4096, 2048, 128}) ==
+    SM90NVFP4AllMArm::BigMSplit);
+// H20-3e (78 SMs) exact-key table.
+static_assert(select_sm90_nvfp4_allm_arm(
+    {78, 8, 256, 8, 6, 4096, 2048, 256}) ==
+    SM90NVFP4AllMArm::D40DynamicRS);
+static_assert(select_sm90_nvfp4_allm_arm(
+    {78, 8, 256, 32, 6, 4096, 2048, 256}) ==
+    SM90NVFP4AllMArm::D40KF424StaticRS);
+static_assert(select_sm90_nvfp4_allm_arm(
+    {78, 8, 256, 64, 6, 4096, 2048, 256}) ==
+    SM90NVFP4AllMArm::D40DynamicRS);
+static_assert(select_sm90_nvfp4_allm_arm(
+    {78, 8, 256, 128, 6, 4096, 2048, 256}) ==
+    SM90NVFP4AllMArm::DevMDynamic);
+static_assert(select_sm90_nvfp4_allm_arm(
+    {78, 8, 384, 8, 6, 7168, 3072, 256}) ==
+    SM90NVFP4AllMArm::D40KF424StaticRS);
+static_assert(select_sm90_nvfp4_allm_arm(
+    {78, 8, 384, 16, 6, 7168, 3072, 256}) ==
+    SM90NVFP4AllMArm::D40DynamicRS);
+static_assert(select_sm90_nvfp4_allm_arm(
+    {78, 8, 384, 32, 6, 7168, 3072, 256}) ==
+    SM90NVFP4AllMArm::D40KF424StaticRS);
+static_assert(select_sm90_nvfp4_allm_arm(
+    {78, 8, 384, 64, 6, 7168, 3072, 256}) ==
+    SM90NVFP4AllMArm::D40DynamicRS);
+static_assert(select_sm90_nvfp4_allm_arm(
+    {78, 8, 384, 128, 6, 7168, 3072, 256}) ==
+    SM90NVFP4AllMArm::D40KF424StaticRS);
+static_assert(select_sm90_nvfp4_allm_arm(
+    {78, 8, 384, 2048, 6, 7168, 3072, 128}) ==
     SM90NVFP4AllMArm::BigMSplit);
 
 }  // namespace deep_gemm

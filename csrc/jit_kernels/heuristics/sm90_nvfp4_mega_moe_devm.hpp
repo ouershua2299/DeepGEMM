@@ -27,6 +27,9 @@ struct SM90NVFP4H200FusedConfig {
 
 struct SM90NVFP4H200FusedShape {
     static constexpr int kH200NumSMs = 132;
+    // H20-3e is the same SM90 SM (regs/threads/SMEM identical) with 78 SMs;
+    // the persistent fused kernel launches one CTA per SM on either part.
+    static constexpr int kH20NumSMs = 78;
     static constexpr int kNumRanks = 8;
 
     int num_sms;
@@ -41,7 +44,8 @@ struct SM90NVFP4H200FusedShape {
     }
 
     constexpr bool is_supported_h200_shape() const noexcept {
-        if (num_sms != kH200NumSMs || num_ranks != kNumRanks)
+        if ((num_sms != kH200NumSMs && num_sms != kH20NumSMs) ||
+            num_ranks != kNumRanks)
             return false;
         const bool flash =
             num_experts == 256 && num_topk == 6 &&

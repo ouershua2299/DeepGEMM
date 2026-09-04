@@ -34,6 +34,7 @@ public:
         bool use_mode2_row_decoder;
         bool single_active_dispatch_warp;
         bool use_interleaved_scheduler;
+        int num_sms;
         SM90NVFP4H200FusedConfig config;
 
         void* y;
@@ -53,10 +54,13 @@ public:
     };
 
     static std::string generate_impl(const Args& args) {
-        const std::string kernel_header =
+        DG_HOST_ASSERT(args.num_sms == 132 || args.num_sms == 78);
+        const std::string kernel_header = fmt::format(
             "#define DG_NVLINK_BARRIER_TRAP_ONLY_TIMEOUT 1\n"
+            "#define MEGAMOE_NUM_SMS {}\n"
             "#include <deep_gemm/impls/"
-            "sm90_nvfp4_mega_moe_h200_fused.cuh>";
+            "sm90_nvfp4_mega_moe_h200_fused.cuh>",
+            args.num_sms);
         const std::string policy_template_args = fmt::format(
             "/* kSwapABRequested */ {},\n"
             "        /* kRSSwapABRequested */ {},\n"
@@ -238,6 +242,7 @@ static void sm90_nvfp4_h200_fused_mega_moe(
         .use_mode2_row_decoder = rs_swap_ab || plan.use_mode2_row_decoder,
         .single_active_dispatch_warp = plan.single_active_dispatch_warp,
         .use_interleaved_scheduler = plan.use_interleaved_scheduler,
+        .num_sms = num_sms,
         .config = config,
         .y = y.data_ptr(),
         .cumulative_local_expert_recv_stats = cumulative_stats_ptr,

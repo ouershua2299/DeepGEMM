@@ -364,6 +364,21 @@ static SM90NVFP4SmallMPlan select_sm90_nvfp4_small_m_kf424(
         smem_size = 193280;
         single_active_dispatch_warp = true;
         compact_smem = true;
+    } else if (is_pro && input.num_tokens == 8) {
+        // H20-3e bucket (candidate-424 wrapper row Pro M8); not part of the
+        // H200 D40 table, which never routes Pro M8 here.
+        block_m = 8;
+        num_experts_per_wave = 48;
+        num_stages = 3;
+        smem_size = 178944;
+        single_active_dispatch_warp = true;
+    } else if (is_pro && input.num_tokens == 32) {
+        // H20-3e bucket (candidate-424 wrapper row Pro M32).
+        block_m = 8;
+        num_experts_per_wave = 48;
+        num_stages = 3;
+        smem_size = 193280;
+        single_active_dispatch_warp = false;
     } else {
         DG_HOST_UNREACHABLE("Point is not part of the D40 KF 424 policy");
     }
