@@ -1,0 +1,50 @@
+From 1d5855ea447afd59d0637133ff9c83df76bf6ca0 Mon Sep 17 00:00:00 2001
+From: Xuecheng Wu <xuechengw@nvidia.com>
+Date: Sat, 5 Sep 2026 23:25:31 -0700
+Subject: [PATCH] SM90 split MegaMoE: DG_SM90_SPLIT_PHASES validation hook
+ around the L1/L2 launches
+
+Env-gated phase mask (default "l1,l2") so an external L1 or L2 replacement can be
+validated behind the production counterpart on the same symmetric buffers.
+Production callers never set it. Validated 2026-09-05 with
+CAKE/tooling/split_hybrid_driver.sh flash 2048 on 8xH20 (l1-only leaves y
+untouched, l2_acts populated, hook validated: True on all ranks).
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>
+---
+ csrc/jit_kernels/impls/sm90_nvfp4_mega_moe.hpp | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/csrc/jit_kernels/impls/sm90_nvfp4_mega_moe.hpp b/csrc/jit_kernels/impls/sm90_nvfp4_mega_moe.hpp
+index 78ba469..fa22785 100644
+--- a/csrc/jit_kernels/impls/sm90_nvfp4_mega_moe.hpp
++++ b/csrc/jit_kernels/impls/sm90_nvfp4_mega_moe.hpp
+@@ -345,7 +345,14 @@ static void sm90_nvfp4_split_mega_moe(
+             KernelConfig::kL1ClusterSize &&
+         args.config.num_dispatch_threads ==
+             KernelConfig::kL1NumDispatchThreads);
+-    build_and_launch(args, "sm90_nvfp4_mega_moe_l1");
++    // Validation hook for external L1/L2 replacements: DG_SM90_SPLIT_PHASES
++    // selects which production phases launch ("l1,l2" default, "l1" or "l2").
++    // Production paths never set it; both phases always launch by default.
++    const auto split_phases = get_env<std::string>("DG_SM90_SPLIT_PHASES", "l1,l2");
++    const bool launch_l1 = split_phases.find("l1") != std::string::npos;
++    const bool launch_l2 = split_phases.find("l2") != std::string::npos;
++    if (launch_l1)
++        build_and_launch(args, "sm90_nvfp4_mega_moe_l1");
+ 
+     auto l2_args = args;
+     l2_args.phase_mode = SM90NVFP4SplitMegaMoERuntime::kL2PhaseMode;
+@@ -363,7 +370,8 @@ static void sm90_nvfp4_split_mega_moe(
+         l2_args.config.smem_size,
+         l2_args.config.cluster_size,
+         false);
+-    build_and_launch(l2_args, "sm90_nvfp4_mega_moe_l2");
++    if (launch_l2)
++        build_and_launch(l2_args, "sm90_nvfp4_mega_moe_l2");
+ }
+ 
+ } // namespace deep_gemm
+-- 
+2.43.0
+
